@@ -38,26 +38,12 @@
    },
    {
     "include": [
-     "/app/node_modules"
-    ],
-    "step": "build"
-   },
-   {
-    "exclude": [
-     "node_modules",
-     ".yarn"
-    ],
-    "include": [
-     "/root/.cache",
-     ".",
-     "/opt/corepack",
-     "/mise/installs",
-     "/mise/shims"
+     "/railpack/next-standalone"
     ],
     "step": "build"
    }
   ],
-  "startCommand": "npm run start",
+  "startCommand": "node /railpack/next-standalone/server.js",
   "variables": {
    "CI": "true",
    "NODE_ENV": "production",
@@ -172,13 +158,29 @@
    }
   },
   {
+   "assets": {
+    "configure-next-standalone.mjs": "import { readFile, writeFile } from \"node:fs/promises\";\nimport path from \"node:path\";\n\nconst configPath = process.argv[2];\nif (!configPath || ![\".js\", \".mjs\", \".ts\"].includes(path.extname(configPath))) {\n  throw new Error(\"expected a next.config.js, next.config.mjs, or next.config.ts path\");\n}\n\nlet source;\ntry {\n  source = await readFile(configPath, \"utf8\");\n} catch (error) {\n  if (error.code !== \"ENOENT\") throw error;\n  source = \"const nextConfig = {};\\nexport default nextConfig;\\n\";\n}\n\nfunction maskComments(value) {\n  let result = \"\";\n  let quote = \"\";\n  for (let index = 0; index \u003c value.length; index += 1) {\n    const current = value[index];\n    const next = value[index + 1];\n    if (quote) {\n      result += current;\n      if (current === \"\\\\\" \u0026\u0026 next) {\n        index += 1;\n        result += value[index];\n      } else if (current === quote) {\n        quote = \"\";\n      }\n      continue;\n    }\n    if (current === \"'\" || current === '\"') {\n      quote = current;\n      result += current;\n      continue;\n    }\n    if (current === \"/\" \u0026\u0026 next === \"/\") {\n      result += \"  \";\n      index += 1;\n      while (index + 1 \u003c value.length \u0026\u0026 value[index + 1] !== \"\\n\") {\n        index += 1;\n        result += \" \";\n      }\n      continue;\n    }\n    if (current === \"/\" \u0026\u0026 next === \"*\") {\n      result += \"  \";\n      index += 1;\n      while (index + 1 \u003c value.length \u0026\u0026 !(value[index] === \"*\" \u0026\u0026 value[index + 1] === \"/\")) {\n        index += 1;\n        result += value[index] === \"\\n\" ? \"\\n\" : \" \";\n      }\n      if (index + 1 \u003c value.length) {\n        index += 1;\n        result += \" \";\n      }\n      continue;\n    }\n    result += current;\n  }\n  return result;\n}\n\nconst masked = maskComments(source);\nconst outputPattern = /\\boutput\\s*:\\s*([\"'])[^\"']*\\1/g;\nconst outputMatches = [...masked.matchAll(outputPattern)];\nif (outputMatches.length \u003e 1) {\n  throw new Error(\"multiple static output properties found in Next.js config\");\n}\n\nif (outputMatches.length === 1) {\n  const match = outputMatches[0];\n  source = source.slice(0, match.index) + 'output: \"standalone\"' + source.slice(match.index + match[0].length);\n} else if (/\\boutput\\s*:/.test(masked)) {\n  throw new Error(\"dynamic output properties are not supported in Next.js config\");\n} else {\n  const nextConfigObject = /\\b(?:const|let|var)\\s+nextConfig(?:\\s*:[^=]+)?\\s*=\\s*\\{/g;\n  const exportsNextConfig =\n    /\\bexport\\s+default\\s+nextConfig\\b/.test(masked) ||\n    /\\bmodule\\.exports\\s*=\\s*nextConfig\\b/.test(masked);\n  const objectPatterns = [\n    ...(exportsNextConfig ? [nextConfigObject] : []),\n    /\\bexport\\s+default\\s*\\{/g,\n    /\\bmodule\\.exports\\s*=\\s*\\{/g,\n  ];\n  const matches = objectPatterns.flatMap((pattern) =\u003e [...masked.matchAll(pattern)]);\n  if (matches.length !== 1) {\n    throw new Error(\"unable to locate a unique Next.js config object\");\n  }\n  const insertAt = matches[0].index + matches[0][0].length;\n  source = source.slice(0, insertAt) + '\\n  output: \"standalone\",' + source.slice(insertAt);\n}\n\nawait writeFile(configPath, source);\nconsole.log(\"Configured \" + configPath + \" for Next.js standalone output\");\n"
+   },
    "caches": [
     "node-modules",
     "next-apps-web"
    ],
    "commands": [
     {
+     "customName": "create Next.js standalone config script",
+     "name": "configure-next-standalone.mjs",
+     "path": "/railpack/scripts/configure-next-standalone.mjs"
+    },
+    {
+     "cmd": "node '/railpack/scripts/configure-next-standalone.mjs' 'apps/web/next.config.js'",
+     "customName": "configure Next.js standalone output"
+    },
+    {
      "cmd": "npm run build"
+    },
+    {
+     "cmd": "sh -c 'cd \"apps/web\" \u0026\u0026 standalone_dirs=\"$(find . -path \"*/node_modules\" -prune -o -type d -name standalone -print)\" \u0026\u0026 [ \"$(printf \"%s\\n\" \"$standalone_dirs\" | sed \"/^$/d\" | wc -l)\" -eq 1 ] \u0026\u0026 standalone_dir=\"$standalone_dirs\" \u0026\u0026 app_server_rel=\"apps/web/server.js\" \u0026\u0026 if [ -f \"$standalone_dir/server.js\" ]; then server_rel=server.js; elif [ -f \"$standalone_dir/$app_server_rel\" ]; then server_rel=\"$app_server_rel\"; else exit 1; fi \u0026\u0026 server_dir=\"$(dirname \"$server_rel\")\" \u0026\u0026 dist_dir=\"${standalone_dir%/standalone}\" \u0026\u0026 rm -rf \"/railpack/next-standalone\" \u0026\u0026 mkdir -p \"/railpack/next-standalone\" \u0026\u0026 cp -a \"$standalone_dir/.\" \"/railpack/next-standalone\" \u0026\u0026 mkdir -p \"/railpack/next-standalone\"/\"$server_dir\"/\"$dist_dir\" \u0026\u0026 cp -a \"$dist_dir/static\" \"/railpack/next-standalone\"/\"$server_dir\"/\"$dist_dir\" \u0026\u0026 cp -a public \"/railpack/next-standalone\"/\"$server_dir\"/public \u0026\u0026 if [ \"$server_rel\" != server.js ]; then ln -s \"$server_rel\" \"/railpack/next-standalone\"/server.js; fi'",
+     "customName": "prepare Next.js standalone deploy"
     }
    ],
    "inputs": [

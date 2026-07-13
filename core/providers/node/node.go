@@ -95,6 +95,26 @@ func (p *NodeProvider) Plan(ctx *generate.GenerateContext) error {
 	}
 
 	isSPA := p.isSPA(ctx)
+	_, nextAppErr := p.getNextPackage(ctx)
+	isNextStandalone := nextAppErr == nil &&
+		!isSPA &&
+		!p.isNextSPA(ctx) &&
+		!p.hasDynamicNextOutput(ctx) &&
+		ctx.Config.Deploy.StartCmd == ""
+
+	var nextStandaloneAppPath string
+	var nextStandaloneConfigPath string
+	if isNextStandalone {
+		var err error
+		nextStandaloneAppPath, err = p.getNextAppPath(ctx)
+		if err != nil {
+			return fmt.Errorf("configure Next.js standalone output: %w", err)
+		}
+		nextStandaloneConfigPath, err = p.getNextStandaloneConfigPath(ctx)
+		if err != nil {
+			return fmt.Errorf("configure Next.js standalone output: %w", err)
+		}
+	}
 
 	miseStep := ctx.GetMiseStepBuilder()
 	p.InstallMisePackages(ctx, miseStep)
@@ -110,18 +130,100 @@ func (p *NodeProvider) Plan(ctx *generate.GenerateContext) error {
 		p.PruneNodeDeps(ctx, prune)
 	}
 
+	hasConfiguredBuildCommand := false
+	if configuredBuild, ok := ctx.Config.Steps["build"]; ok {
+		hasConfiguredBuildCommand = len(configuredBuild.Commands) > 0
+	}
+	if isNextStandalone && !p.packageJson.HasScript("build") && !hasConfiguredBuildCommand {
+		return fmt.Errorf("next.js standalone output requires a build command")
+	}
+
+	standaloneSetupCommands := []plan.Command{}
+	standalonePrepareCommands := []plan.Command{}
+	if isNextStandalone {
+		standaloneSetupCommands = append(standaloneSetupCommands,
+			plan.NewFileCommand(
+				NextStandaloneConfigScriptPath,
+				NextStandaloneConfigScriptAsset,
+				plan.FileOptions{CustomName: "create Next.js standalone config script"},
+			),
+			plan.NewExecCommand(
+				getNextStandaloneConfigCommand(nextStandaloneConfigPath),
+				plan.ExecOptions{CustomName: "configure Next.js standalone output"},
+			),
+		)
+		hasPublic := ctx.App.HasMatch(path.Join(nextStandaloneAppPath, "public/**"))
+		prepareCommand := getNextStandalonePrepareCommand(nextStandaloneAppPath, hasPublic)
+		standalonePrepareCommands = append(standalonePrepareCommands,
+			plan.NewExecShellCommand(
+				prepareCommand,
+				plan.ExecOptions{CustomName: "prepare Next.js standalone deploy"},
+			),
+		)
+	}
+
 	build := ctx.NewCommandStep("build")
 	build.AddInput(plan.NewStepLayer(install.Name()))
+	if isNextStandalone {
+		build.Assets[NextStandaloneConfigScriptAsset] = getNextStandaloneConfigScript()
+		build.AddCommands(standaloneSetupCommands)
+	}
 	p.Build(ctx, build)
+	build.AddCommands(standalonePrepareCommands)
+
+	if isNextStandalone && hasConfiguredBuildCommand {
+		configuredBuild := ctx.Config.Steps["build"]
+		defaultBuildStart := len(standaloneSetupCommands)
+		defaultBuildEnd := len(build.Commands) - len(standalonePrepareCommands)
+		defaultBuildCommands := build.Commands[defaultBuildStart:defaultBuildEnd]
+		customCommands := plan.Spread(configuredBuild.Commands, defaultBuildCommands)
+		commands := make(
+			[]plan.Command,
+			0,
+			len(customCommands)+len(standaloneSetupCommands)+len(standalonePrepareCommands),
+		)
+		setupAdded := false
+		for _, command := range customCommands {
+			// Configure Next before the first build process can read its config.
+			if _, ok := command.(plan.ExecCommand); ok && !setupAdded {
+				commands = append(commands, standaloneSetupCommands...)
+				setupAdded = true
+			}
+			commands = append(commands, command)
+		}
+		if !setupAdded {
+			return fmt.Errorf("next.js standalone output requires an executable build command")
+		}
+		// Prepare last so every custom build command has produced its final output.
+		commands = append(commands, standalonePrepareCommands...)
+		configuredBuild.Commands = commands
+		configuredBuild.DeployOutputs = []plan.Filter{
+			plan.NewIncludeFilter([]string{NextStandaloneDeployRoot}),
+		}
+	}
 
 	// Deploy
-	ctx.Deploy.StartCmd = p.GetStartCommand(ctx)
+	if ctx.Config.Deploy.StartCmd != "" {
+		ctx.Deploy.StartCmd = ctx.Config.Deploy.StartCmd
+	} else if isNextStandalone {
+		ctx.Deploy.StartCmd = getNextStandaloneStartCommand(nextStandaloneAppPath)
+	} else {
+		ctx.Deploy.StartCmd = p.GetStartCommand(ctx)
+	}
 	maps.Copy(ctx.Deploy.Variables, p.GetNodeEnvVars(ctx))
 
 	// Custom deploy for SPA's
 	if isSPA {
 		err := p.DeploySPA(ctx, build)
 		return err
+	}
+
+	if isNextStandalone {
+		ctx.Deploy.AddInputs([]plan.Layer{
+			miseStep.GetLayer(),
+			plan.NewStepLayer(build.Name(), plan.NewIncludeFilter([]string{NextStandaloneDeployRoot})),
+		})
+		return nil
 	}
 
 	// All the files we need to include in the deploy

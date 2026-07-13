@@ -2,11 +2,13 @@ package node
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/railwayapp/railpack/core/app"
 	"github.com/railwayapp/railpack/core/generate"
+	"github.com/railwayapp/railpack/core/plan"
 	testingUtils "github.com/railwayapp/railpack/core/testing"
 	"github.com/stretchr/testify/require"
 )
@@ -119,6 +121,128 @@ func TestNode(t *testing.T) {
 						require.Equal(t, tt.pnpmVersion, pnpmVersion.Version)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestNextStandalonePlan(t *testing.T) {
+	tests := []struct {
+		name             string
+		appPath          string
+		env              map[string]string
+		configure        func(*generate.GenerateContext)
+		wantStart        string
+		wantDeployInput  string
+		wantStandalone   bool
+		wantBuildCommand string
+	}{
+		{
+			name:             "root Next app",
+			appPath:          "../../../examples/node-next",
+			wantStart:        "node /railpack/next-standalone/server.js",
+			wantDeployInput:  NextStandaloneDeployRoot,
+			wantStandalone:   true,
+			wantBuildCommand: "npm run build",
+		},
+		{
+			name:             "workspace Next app",
+			appPath:          "../../../examples/node-turborepo",
+			wantStart:        "node /railpack/next-standalone/server.js",
+			wantDeployInput:  NextStandaloneDeployRoot,
+			wantStandalone:   true,
+			wantBuildCommand: "npm run build",
+		},
+		{
+			name:            "Next export remains SPA",
+			appPath:         "../../../examples/node-next-spa",
+			wantDeployInput: "out",
+		},
+		{
+			name:            "forced SPA output remains SPA",
+			appPath:         "../../../examples/node-next",
+			env:             map[string]string{"RAILPACK_SPA_OUTPUT_DIR": "custom-out"},
+			wantDeployInput: "custom-out",
+		},
+		{
+			name:    "custom start command keeps full Node deploy",
+			appPath: "../../../examples/node-next",
+			configure: func(ctx *generate.GenerateContext) {
+				ctx.Config.Deploy.StartCmd = "npm run custom-start"
+			},
+			wantStart:        "npm run custom-start",
+			wantDeployInput:  ".",
+			wantBuildCommand: "npm run build",
+		},
+		{
+			name:    "custom build command keeps standalone setup",
+			appPath: "../../../examples/node-next",
+			configure: func(ctx *generate.GenerateContext) {
+				build := ctx.Config.GetOrCreateStep("build")
+				build.Commands = []plan.Command{
+					plan.NewCopyCommand("."),
+					plan.NewExecShellCommand("custom-next-build"),
+				}
+			},
+			wantStart:        "node /railpack/next-standalone/server.js",
+			wantDeployInput:  NextStandaloneDeployRoot,
+			wantStandalone:   true,
+			wantBuildCommand: "custom-next-build",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := testingUtils.CreateGenerateContext(t, tt.appPath)
+			if tt.env != nil {
+				ctx.Env = app.NewEnvironment(&tt.env)
+			}
+			if tt.configure != nil {
+				tt.configure(ctx)
+			}
+
+			provider := NodeProvider{}
+			require.NoError(t, provider.Initialize(ctx))
+			require.NoError(t, provider.Plan(ctx))
+
+			if tt.wantStart != "" {
+				require.Equal(t, tt.wantStart, ctx.Deploy.StartCmd)
+			} else {
+				require.Contains(t, ctx.Deploy.StartCmd, "caddy run")
+			}
+
+			var deployLayer *plan.Layer
+			for i := range ctx.Deploy.DeployInputs {
+				layer := &ctx.Deploy.DeployInputs[i]
+				if slices.Contains(layer.Include, tt.wantDeployInput) {
+					deployLayer = layer
+					break
+				}
+			}
+			require.NotNil(t, deployLayer)
+			require.False(t, deployLayer.Spread)
+
+			buildStepRef := ctx.GetStepByName("build")
+			require.NotNil(t, buildStepRef)
+			buildStep, ok := (*buildStepRef).(*generate.CommandStepBuilder)
+			require.True(t, ok)
+
+			scriptAsset, hasScriptAsset := buildStep.Assets[NextStandaloneConfigScriptAsset]
+			require.Equal(t, tt.wantStandalone, hasScriptAsset)
+			if tt.wantStandalone {
+				require.Contains(t, scriptAsset, `output: "standalone"`)
+				require.NotContains(t, scriptAsset, "railpack-original")
+				commands := fmt.Sprint(buildStep.Commands)
+				require.Contains(t, commands, NextStandaloneConfigScriptPath)
+				if tt.configure == nil {
+					require.Contains(t, commands, tt.wantBuildCommand)
+				} else {
+					configuredCommands := fmt.Sprint(ctx.Config.Steps["build"].Commands)
+					require.Contains(t, configuredCommands, tt.wantBuildCommand)
+					require.Contains(t, configuredCommands, "prepare Next.js standalone deploy")
+				}
+				require.Contains(t, commands, "prepare Next.js standalone deploy")
+				require.Contains(t, commands, "sh -c")
 			}
 		})
 	}
