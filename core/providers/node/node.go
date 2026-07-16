@@ -59,6 +59,31 @@ func (p *NodeProvider) Name() string {
 	return "node"
 }
 
+func (p *NodeProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	runtime := p.getRuntime(ctx)
+	metadata := generate.ProviderMetadata{Runtime: runtime}
+
+	if p.isSPA(ctx) {
+		metadata.Expose = "80"
+	} else {
+		switch runtime {
+		case "next", "nuxt", "remix", "tanstack-start", "react-router":
+			metadata.Expose = "3000"
+		case "astro":
+			metadata.Expose = "4321"
+		}
+	}
+
+	switch runtime {
+	case "next":
+		metadata.Runtime = "nextjs"
+	case "node":
+		metadata.Runtime = "nodejs"
+	}
+
+	return metadata
+}
+
 func (p *NodeProvider) Initialize(ctx *generate.GenerateContext) error {
 	packageJson, err := p.GetPackageJson(ctx.App)
 	if err != nil {
@@ -698,7 +723,7 @@ func (p *NodeProvider) getRuntime(ctx *generate.GenerateContext) string {
 
 		// this can occur if a user forces SPA mode via config
 		return "static"
-	} else if p.isNext() {
+	} else if p.hasNextPackage(ctx) {
 		return "next"
 	} else if p.isNuxt() {
 		return "nuxt"
@@ -717,6 +742,13 @@ func (p *NodeProvider) getRuntime(ctx *generate.GenerateContext) string {
 	}
 
 	return "node"
+}
+
+func (p *NodeProvider) hasNextPackage(ctx *generate.GenerateContext) bool {
+	packages, _ := p.getPackagesWithFramework(ctx, func(pkg *WorkspacePackage, _ *generate.GenerateContext) bool {
+		return pkg.PackageJson.hasDependency("next")
+	})
+	return len(packages) > 0
 }
 
 func (p *NodeProvider) isNext() bool {

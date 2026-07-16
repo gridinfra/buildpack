@@ -387,6 +387,37 @@ func TestPackageJsonRequiresBun(t *testing.T) {
 	})
 }
 
+func TestMetadata(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		runtime     string
+		nodeRuntime string
+		expose      string
+	}{
+		{name: "next server", path: "../../../examples/node-next", runtime: "nextjs", nodeRuntime: "next", expose: "3000"},
+		{name: "next static", path: "../../../examples/node-next-spa", runtime: "nextjs", nodeRuntime: "next", expose: "80"},
+		{name: "next workspace", path: "../../../examples/node-turborepo", runtime: "nextjs", nodeRuntime: "next", expose: "3000"},
+		{name: "vite spa", path: "../../../examples/node-vite-react", runtime: "vite", nodeRuntime: "vite", expose: "80"},
+		{name: "astro server", path: "../../../examples/node-astro-server", runtime: "astro", nodeRuntime: "astro", expose: "4321"},
+		{name: "plain node", path: "../../../examples/node-npm", runtime: "nodejs", nodeRuntime: "node"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := testingUtils.CreateGenerateContext(t, tt.path)
+			provider := NodeProvider{}
+			require.NoError(t, provider.Initialize(ctx))
+			require.NoError(t, provider.Plan(ctx))
+
+			metadata := provider.Metadata(ctx)
+			require.Equal(t, tt.runtime, metadata.Runtime)
+			require.Equal(t, tt.expose, metadata.Expose)
+			require.Equal(t, tt.nodeRuntime, ctx.Metadata.Get("nodeRuntime"))
+		})
+	}
+}
+
 func TestUsesPnpmBinSubdir(t *testing.T) {
 	tests := []struct {
 		name    string

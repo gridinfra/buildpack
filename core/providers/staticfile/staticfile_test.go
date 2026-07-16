@@ -37,6 +37,11 @@ func TestDetect(t *testing.T) {
 			got, err := provider.Detect(ctx)
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
+			if got {
+				metadata := provider.Metadata(ctx)
+				require.Equal(t, "static", metadata.Runtime)
+				require.Equal(t, "80", metadata.Expose)
+			}
 		})
 	}
 }

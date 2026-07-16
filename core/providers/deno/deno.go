@@ -24,6 +24,10 @@ func (p *DenoProvider) Name() string {
 	return "deno"
 }
 
+func (p *DenoProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	return generate.ProviderMetadata{Runtime: "deno"}
+}
+
 func (p *DenoProvider) Detect(ctx *generate.GenerateContext) (bool, error) {
 	hasDenoJson := ctx.App.HasFile("deno.json") || ctx.App.HasFile("deno.jsonc")
 	return hasDenoJson, nil

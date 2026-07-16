@@ -45,6 +45,16 @@ func TestPhpProvider(t *testing.T) {
 
 			isLaravel := provider.usesLaravel(ctx)
 			require.Equal(t, tt.isLaravel, isLaravel)
+
+			if isPhp {
+				metadata := provider.Metadata(ctx)
+				expectedRuntime := "php"
+				if tt.isLaravel {
+					expectedRuntime = "laravel"
+				}
+				require.Equal(t, expectedRuntime, metadata.Runtime)
+				require.Equal(t, "80", metadata.Expose)
+			}
 		})
 	}
 }

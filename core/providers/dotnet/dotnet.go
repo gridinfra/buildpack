@@ -27,6 +27,10 @@ func (p *DotnetProvider) Name() string {
 	return "Dotnet"
 }
 
+func (p *DotnetProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	return generate.ProviderMetadata{Runtime: "dotnet", Expose: "3000"}
+}
+
 func (p *DotnetProvider) Detect(ctx *generate.GenerateContext) (bool, error) {
 	return ctx.App.HasMatch("*.csproj"), nil
 }

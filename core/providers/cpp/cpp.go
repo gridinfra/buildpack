@@ -14,6 +14,10 @@ func (p *CppProvider) Name() string {
 	return "cpp"
 }
 
+func (p *CppProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	return generate.ProviderMetadata{Runtime: "cpp"}
+}
+
 func (p *CppProvider) CleansePlan(buildPlan *plan.BuildPlan) {}
 
 func (p *CppProvider) Detect(ctx *generate.GenerateContext) (bool, error) {

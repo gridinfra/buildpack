@@ -33,6 +33,10 @@ func (p *StaticfileProvider) Name() string {
 	return "staticfile"
 }
 
+func (p *StaticfileProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	return generate.ProviderMetadata{Runtime: "static", Expose: "80"}
+}
+
 func (p *StaticfileProvider) Initialize(ctx *generate.GenerateContext) error {
 	return nil
 }

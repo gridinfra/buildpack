@@ -13,6 +13,13 @@ func (p *JavaProvider) Name() string {
 	return "java"
 }
 
+func (p *JavaProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	if p.usesSpringBoot(ctx) {
+		return generate.ProviderMetadata{Runtime: "spring-boot"}
+	}
+	return generate.ProviderMetadata{Runtime: "java"}
+}
+
 func (p *JavaProvider) Detect(ctx *generate.GenerateContext) (bool, error) {
 	return ctx.App.HasMatch("pom.{xml,atom,clj,groovy,rb,scala,yaml,yml}") || ctx.App.HasMatch("gradlew"), nil
 }

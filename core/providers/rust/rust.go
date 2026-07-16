@@ -26,6 +26,10 @@ func (p *RustProvider) Name() string {
 	return "rust"
 }
 
+func (p *RustProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	return generate.ProviderMetadata{Runtime: "rust"}
+}
+
 func (p *RustProvider) Detect(ctx *generate.GenerateContext) (bool, error) {
 	hasCargoToml := ctx.App.HasFile("Cargo.toml")
 	return hasCargoToml, nil

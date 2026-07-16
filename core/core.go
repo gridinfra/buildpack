@@ -98,6 +98,10 @@ func GenerateBuildPlan(app *app.App, env *app.Environment, options *GenerateBuil
 			logger.LogError("%s", err.Error())
 			return &BuildResult{Success: false, Logs: logger.Logs}
 		}
+
+		providerMetadata := providerToUse.Metadata(ctx)
+		ctx.Metadata.Set("runtime", providerMetadata.Runtime)
+		ctx.Metadata.Set("expose", providerMetadata.Expose)
 	}
 
 	// Run the procfile provider to support apps that have a Procfile with a start command

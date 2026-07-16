@@ -11,6 +11,10 @@ func (p *GleamProvider) Name() string {
 	return "gleam"
 }
 
+func (p *GleamProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	return generate.ProviderMetadata{Runtime: "gleam"}
+}
+
 func (p *GleamProvider) Detect(ctx *generate.GenerateContext) (bool, error) {
 	return ctx.App.HasFile("gleam.toml"), nil
 }

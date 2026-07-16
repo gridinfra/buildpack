@@ -65,6 +65,14 @@ func TestGolang(t *testing.T) {
 				require.Equal(t, tt.hasWorkspace, provider.isGoWorkspace(ctx))
 				require.Equal(t, tt.cgoEnabled, provider.hasCGOEnabled(ctx))
 
+				metadata := provider.Metadata(ctx)
+				expectedRuntime := "go"
+				if provider.isGin(ctx) {
+					expectedRuntime = "gin"
+				}
+				require.Equal(t, expectedRuntime, metadata.Runtime)
+				require.Empty(t, metadata.Expose)
+
 				if tt.goVersion != "" {
 					goVersion := ctx.Resolver.Get("go")
 					require.Equal(t, tt.goVersion, goVersion.Version)

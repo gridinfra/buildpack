@@ -20,6 +20,10 @@ func (p *ShellProvider) Name() string {
 	return "shell"
 }
 
+func (p *ShellProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	return generate.ProviderMetadata{Runtime: "shell"}
+}
+
 func (p *ShellProvider) Detect(ctx *generate.GenerateContext) (bool, error) {
 	return getScript(ctx) != "", nil
 }

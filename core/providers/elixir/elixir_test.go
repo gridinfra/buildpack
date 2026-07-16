@@ -41,6 +41,9 @@ func TestElixir(t *testing.T) {
 
 				err = provider.Plan(ctx)
 				require.NoError(t, err)
+				metadata := provider.Metadata(ctx)
+				require.Equal(t, "phoenix", metadata.Runtime)
+				require.Equal(t, "4000", metadata.Expose)
 			}
 		})
 	}

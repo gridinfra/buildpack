@@ -23,6 +23,16 @@ func (p *RubyProvider) Name() string {
 	return "ruby"
 }
 
+func (p *RubyProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	if p.usesRails(ctx) {
+		return generate.ProviderMetadata{Runtime: "rails", Expose: "3000"}
+	}
+	if ctx.App.HasFile("config.ru") {
+		return generate.ProviderMetadata{Runtime: "ruby", Expose: "3000"}
+	}
+	return generate.ProviderMetadata{Runtime: "ruby"}
+}
+
 func (p *RubyProvider) Initialize(ctx *generate.GenerateContext) error {
 	return nil
 }

@@ -26,6 +26,18 @@ func (p *PythonProvider) Name() string {
 	return "python"
 }
 
+func (p *PythonProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	runtime := p.getRuntime(ctx)
+	metadata := generate.ProviderMetadata{Runtime: runtime}
+
+	switch runtime {
+	case "django", "flask", "fastapi", "fasthtml":
+		metadata.Expose = "8000"
+	}
+
+	return metadata
+}
+
 func (p *PythonProvider) Initialize(ctx *generate.GenerateContext) error {
 	return nil
 }

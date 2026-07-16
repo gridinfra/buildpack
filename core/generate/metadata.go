@@ -1,5 +1,10 @@
 package generate
 
+type ProviderMetadata struct {
+	Runtime string
+	Expose  string
+}
+
 type Metadata struct {
 	Properties map[string]string `json:"properties"`
 }

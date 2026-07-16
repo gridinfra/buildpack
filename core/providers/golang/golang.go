@@ -22,6 +22,13 @@ func (p *GoProvider) Name() string {
 	return "golang"
 }
 
+func (p *GoProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	if p.isGin(ctx) {
+		return generate.ProviderMetadata{Runtime: "gin"}
+	}
+	return generate.ProviderMetadata{Runtime: "go"}
+}
+
 func (p *GoProvider) Detect(ctx *generate.GenerateContext) (bool, error) {
 	return p.isGoMod(ctx) || p.isGoWorkspace(ctx) || ctx.App.HasFile("main.go"), nil
 }

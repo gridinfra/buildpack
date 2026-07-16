@@ -35,6 +35,14 @@ func (p *PhpProvider) Name() string {
 	return "php"
 }
 
+func (p *PhpProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	runtime := "php"
+	if p.usesLaravel(ctx) {
+		runtime = "laravel"
+	}
+	return generate.ProviderMetadata{Runtime: runtime, Expose: "80"}
+}
+
 func (p *PhpProvider) Detect(ctx *generate.GenerateContext) (bool, error) {
 	return ctx.App.HasFile("index.php") ||
 		ctx.App.HasFile("composer.json"), nil

@@ -93,6 +93,48 @@ func TestGenerateConfigFromFile_Malformed(t *testing.T) {
 	require.Nil(t, cfg, "config should be nil on error")
 }
 
+func TestGenerateBuildPlan_ProviderMetadata(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		runtime     string
+		expose      string
+		legacyKey   string
+		legacyValue string
+	}{
+		{name: "nextjs", path: "../examples/node-next", runtime: "nextjs", expose: "3000", legacyKey: "nodeRuntime", legacyValue: "next"},
+		{name: "nodejs", path: "../examples/node-npm", runtime: "nodejs", legacyKey: "nodeRuntime", legacyValue: "node"},
+		{name: "vite spa", path: "../examples/node-vite-react", runtime: "vite", expose: "80", legacyKey: "nodeRuntime", legacyValue: "vite"},
+		{name: "django", path: "../examples/python-django", runtime: "django", expose: "8000", legacyKey: "pythonRuntime", legacyValue: "django"},
+		{name: "go", path: "../examples/go-mod", runtime: "go"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			userApp, err := app.NewApp(tt.path)
+			require.NoError(t, err)
+
+			buildResult := GenerateBuildPlan(userApp, app.NewEnvironment(nil), &GenerateBuildPlanOptions{})
+			require.True(t, buildResult.Success)
+			require.Equal(t, tt.runtime, buildResult.Metadata["runtime"])
+			require.Equal(t, tt.expose, buildResult.Metadata["expose"])
+			if tt.legacyKey != "" {
+				require.Equal(t, tt.legacyValue, buildResult.Metadata[tt.legacyKey])
+			}
+		})
+	}
+}
+
+func TestGenerateBuildPlan_ExplicitProviderMetadata(t *testing.T) {
+	userApp, err := app.NewApp("../examples/config-file")
+	require.NoError(t, err)
+
+	buildResult := GenerateBuildPlan(userApp, app.NewEnvironment(nil), &GenerateBuildPlanOptions{})
+	require.True(t, buildResult.Success)
+	require.Equal(t, "bun", buildResult.Metadata["runtime"])
+	require.Equal(t, "node", buildResult.Metadata["providers"])
+}
+
 func TestGenerateBuildPlan_DockerignoreMetadata(t *testing.T) {
 	appPath := "../examples/dockerignore"
 	userApp, err := app.NewApp(appPath)

@@ -40,6 +40,9 @@ func TestDotnet(t *testing.T) {
 
 				err = provider.Plan(ctx)
 				require.NoError(t, err)
+				metadata := provider.Metadata(ctx)
+				require.Equal(t, "dotnet", metadata.Runtime)
+				require.Equal(t, "3000", metadata.Expose)
 			}
 		})
 	}

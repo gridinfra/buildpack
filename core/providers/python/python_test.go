@@ -57,6 +57,35 @@ func TestDetect(t *testing.T) {
 	}
 }
 
+func TestMetadata(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		runtime string
+		expose  string
+	}{
+		{name: "django", path: "../../../examples/python-django", runtime: "django", expose: "8000"},
+		{name: "flask", path: "../../../examples/python-flask", runtime: "flask", expose: "8000"},
+		{name: "fastapi", path: "../../../examples/python-fastapi", runtime: "fastapi", expose: "8000"},
+		{name: "fasthtml", path: "../../../examples/python-fasthtml", runtime: "fasthtml", expose: "8000"},
+		{name: "plain python", path: "../../../examples/python-pip", runtime: "python"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := testingUtils.CreateGenerateContext(t, tt.path)
+			provider := PythonProvider{}
+			require.NoError(t, provider.Initialize(ctx))
+			require.NoError(t, provider.Plan(ctx))
+
+			metadata := provider.Metadata(ctx)
+			require.Equal(t, tt.runtime, metadata.Runtime)
+			require.Equal(t, tt.expose, metadata.Expose)
+			require.Equal(t, tt.runtime, ctx.Metadata.Get("pythonRuntime"))
+		})
+	}
+}
+
 func TestUsesBinaryPsycopg(t *testing.T) {
 	tests := []struct {
 		name string

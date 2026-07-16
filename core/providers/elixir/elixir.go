@@ -31,6 +31,13 @@ func (p *ElixirProvider) Name() string {
 	return "Elixir"
 }
 
+func (p *ElixirProvider) Metadata(ctx *generate.GenerateContext) generate.ProviderMetadata {
+	if contents, err := ctx.App.ReadFile("mix.exs"); err == nil && strings.Contains(contents, "{:phoenix,") {
+		return generate.ProviderMetadata{Runtime: "phoenix", Expose: "4000"}
+	}
+	return generate.ProviderMetadata{Runtime: "elixir"}
+}
+
 func (p *ElixirProvider) Detect(ctx *generate.GenerateContext) (bool, error) {
 	hasMixFile := ctx.App.HasFile("mix.exs")
 	return hasMixFile, nil
